@@ -5,7 +5,7 @@ import numpy as np
 
 root_dir = 'sample_drive/'
 checkpoint_dir = 'checkpoints/'
-cam_dir = 'cam_3/'
+cam_dir = 'cam_{}/'.format(sys.argv[1])
 img_dir = root_dir + cam_dir
 diff_dir = checkpoint_dir + 'diff/'
 processed_dir = checkpoint_dir + 'processed/'
@@ -37,37 +37,50 @@ def Process(img):
 	# ret,img = cv2.threshold(img,35,255,cv2.THRESH_BINARY)
 	# img = cv2.Canny(img,10,0)
 
-	kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5, 5))
-	img = cv2.dilate(img,kernel)
+	
 	return img
 
-def Segment(img,dir,cam):
+def Segment(img,cdir,cam):
 	print ('Segmenting..')	
 	ret,img = cv2.threshold(img,35,255,cv2.THRESH_BINARY)
+	bi_path = cdir + cam[:-1] + '_bi.jpg'
+	cv2.imwrite(bi_path,img)
+	kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(7, 7))
+	img = cv2.dilate(img,kernel)
 	img = 255 * np.ones_like(img) - img
 	ret, labels, stats, centroids = cv2.connectedComponentsWithStats(img, connectivity = 8)
 	threshhold_l = 0.001
 	threshhold_u = 0.1
 	cc_nums = []
-	masks = []
+	masks_paths = []
 	for i,s in enumerate(stats):
 		if s[-1] > threshhold_l * img.size and s[-1] < threshhold_u * img.size:
 			cc_nums.append(i)
 	for i,cc in enumerate(cc_nums):
 		msk = np.array(labels)
 		msk = np.where(msk == cc, 255,0)
-		cv2.imwrite(checkpoint_dir + cam[:-1] + '_msk_'+ str(i) +'.jpg',msk)
-		masks.append(msk)
-	return masks
+		msk_path = cdir + cam[:-1] + '_msk_'+ str(i) +'.jpg'
+		print (msk_path)
+		cv2.imwrite(msk_path,msk)
+		masks_paths.append(msk_path)
+	return masks_paths
 
 def Append_mask(masks,img,dir,cam):
-	for i,msk in enumerate(masks):
+	for i,msk_path in enumerate(masks):
 		# msk = cv2.cvtColor(msk, cv2.COLOR_BGR2GRAY)
 		# ret,msk = cv2.threshold(msk,35,255,cv2.THRESH_BINARY)
 		# canny = cv2.Canny(msk,10,0)
-		im2, contours, hierarchy = cv2.findContours(msk,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-		cv2.drawContours(msk, contours, -1, (0,255,0), 3)
-		cv2.imwrite(checkpoint_dir + cam[:-1] + '_canny_'+ str(i) +'.jpg',msk)
+		msk = cv2.imread(msk_path,0)
+		ret,msk = cv2.threshold(msk,127,255,cv2.THRESH_BINARY)
+		# contours, hierarchy = cv2.findContours(msk,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+		# cv2.drawContours(msk, contours, -1, (0,255,0), 3)
+		canny = cv2.Canny(msk,10,0)
+		kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(3, 3))
+		canny = cv2.dilate(canny,kernel)
+
+		# cv2.imwrite(checkpoint_dir + cam[:-1] + '_canny_'+ str(i) +'.jpg',canny)
+		img[canny == 255] = (0,0,255)
+		cv2.imwrite(cdir + cam[:-1] + '_smear_'+ str(i) +'.jpg',img)
 
 
 
@@ -148,9 +161,9 @@ cv2.imwrite(img_avg_processed_path,img_avg_processed)
 masks = Segment(img_avg_processed, checkpoint_dir, cam_dir)
 
 # Show mask(s)
-demo_img_path = checkpoint_dir + 'cam_3_demo.jpg'
-demo_img = cv2.imread(demo_img_path)
-Append_mask(masks,demo_img,checkpoint_dir, cam_dir)
+# demo_img_path = checkpoint_dir + 'cam_3_demo.jpg'
+# demo_img = cv2.imread(demo_img_path)
+# Append_mask(masks,demo_img,checkpoint_dir, cam_dir)
 
 
 
